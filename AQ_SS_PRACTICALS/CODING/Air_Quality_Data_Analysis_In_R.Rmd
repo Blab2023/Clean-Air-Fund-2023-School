@@ -1,0 +1,205 @@
+---
+title: "Air Quality Summer School Data Analysis With R"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+The codes below helps in analysing air quality data
+
+Below are the required libraries for this section. The Key library is the openair
+maintain by [David Carslaw](david.carslaw@york.ac.uk)
+Visit these [sites](https://davidcarslaw.github.io/openair/) for [more info](https://github.com/davidcarslaw/openair)
+You can [Report Bug issues](https://github.com/davidcarslaw/openair/issues) as well. 
+
+```{r}
+library(readr)
+library(ggplot2)
+library(lubridate)
+library(data.table)
+library(openair)
+library(dplyr)
+library(zoo)
+library(rio)
+library(tidyverse)
+```
+
+
+
+Import the needed data for the analysis  using the *import* function
+Set the *date* to the name of the date column (*Time*)
+The date is column is also changed from *character* class to *date time* class. 
+```{r}
+df <- import('C:/Users/CLi/Documents/EORIC/FILES/SUMMER_SCHOOL/DATA/CLEANED_DATA/cleaned_met_aq_data2.csv',header=TRUE,sep = ',', date = 'Time',
+                  date.format = '%Y-%m-%d %H:%M',na.strings = c("-99.0", "-999","-9999",""))
+
+df$date_time <- lubridate::mdy_hm(df$date_time)
+```
+
+
+Have a *glimpse* of the data
+```{r}
+glimpse(df)
+```
+
+
+
+Rename some of the columns to be able to work with easily using the *openair library*
+
+```{r}
+df2<- rename(df,date = date_time,pm25 = 'PM2.5_ug/m3',pm10='PM10_ug/m3',
+             temp=obs_temp,rh=obs_RH,temp2=sensor_temp,rh2=sensor_RH,
+             ws=obs_wind_speed,wd2=wd,wd=wind_direc,ws2=windspeed)
+```
+
+
+The data is in a good form to work around it with the *openair* and functions within it.
+The *summaryPlot* function give you a statistical overview of all the variables in the data with timeseries plot attached. The function contains different parameter requirements that can be varied for better view of the data. *eg the avg.time, percentile*
+```{r}
+summaryPlot(df2,avg.time = 'day')
+```
+
+
+
+For a correlation matrices, the *corPlot* function is used. This gives the correlation among all the variables in the dataset.
+```{r}
+corPlot(df2, dendrogram = TRUE)
+```
+
+
+
+The following line of codes will evaluate the sensor*(mod)* temperature *(check the column names)*,
+the sensor RH *(check the columns name)* against an observed *(obs)* temperature *temp* and RH *rh* data.
+The wind components can also be assessed all using the *modStats*.
+This can be done at your own time. Try and vary the parameters and make meaning from results
+
+(The function can also be used to evaluate model and reference data)
+
+1St evaluation of temperatures
+```{r}
+#evaluation of met reference data and sensor data
+modStats(df2, obs = "temp", mod = "temp2")
+```
+
+
+
+2nd evaluation of RH
+```{r}
+modStats(df2, obs = "rh", mod = "rh2")
+```
+
+
+The *timeVariation* function produces four plots: day of the week variation, mean
+hour of day variation and a combined hour of day – day of week plot and a monthly
+plot. Examples are shown for two variables at a time, you can add a third *c("v1","v2","v3")*
+This function can be used to compare different pollutants, pollutant from different sites and meteorological parameters.
+Vary the parameters and interpret what you see.
+
+```{r}
+timeVariation(df2, pollutant = c("temp", "temp2"), normalise = FALSE)
+```
+
+```{r}
+timeVariation(df2, pollutant = c("pm25", "pm10"), normalise = FALSE)
+```
+
+
+A common task in the analysis of air pollution is the comparison of different pollutant levels at the same time and the *timePlot* function is a useful tool for that. The function plots timeseries of pollutants or other variables. Discuss your observation for day and month timesteps.
+
+```{r}
+timePlot(df2, pollutant =  c("temp", "rh","pm25","ws"),y.relation = "free", avg.time = "day")
+```
+
+```{r}
+timePlot(df2, pollutant =  c("temp", "rh","pm25","ws"),y.relation = "free", avg.time = "month")
+```
+
+The *calendarPlot* function is one of the easy ways to visualize data on a time scale of day and months. This helps you understand variations in air pollution per day for each month in a year.
+Discuss your variations
+
+```{r}
+calendarPlot(df2, pollutant = "pm25", year =2020)
+```
+
+
+```{r}
+calendarPlot(df2, pollutant = "pm25", year = 2020, annotate = "ws")
+```
+
+The WHO threshold for PM2.5 is 15ug/m3, the rest of the break levels were 
+```{r}
+calendarPlot(df2, pollutant = "pm25", year = 2020,
+             breaks = c(0, 14, 50, 100, 150, 300),
+             labels = c("Low", "Moderate", "High", "Very High","Severe"),
+             cols = c("forestgreen", "yellow","orange", "red", "purple"),
+             statistic = "max")
+```
+
+
+
+
+Understanding variations with the wind speed and direction.
+The wind speed and direction are very important components in the analysis of air pollution. These meteorological parameters helps in understanding the transport and trajectory of the air pollutants. A couple of functions *(windRose,pollutionRose, polarPlot and polarFreq)* will be used in this section.
+Vary the variables position and interpret your results.
+
+*1st is wind speed and direction according to the months*
+```{r}
+windRose(df2,ws='ws',wd='wd', type = "month", layout = c(6, 2))
+```
+
+
+
+*2nd with pollutant* Wind rose for four different levels of PM2.5 concentration The levels are defined as the four quantiles of PM2.5 concentration and the ranges are shown on each of the plot labels
+```{r}
+windRose(df2, type = "pm25", layout = c(4, 1))
+```
+
+
+
+*pollutionRose*function is a variant of *windRose(used above)* that is useful for considering pollutant concentrations by wind direction, or more specifically the percentage time the concentration is in a particular range.
+```{r}
+pollutionRose(df2, pollutant = "pm25")
+```
+
+
+
+Now lets plot using month for type an examine the output
+```{r}
+pollutionRose(df2, pollutant = "pm25",type='month')
+```
+
+
+Also, each wind sector can be normalized to give a probability between 0 and 1 to help show the variation within each wind sector more clearly.
+```{r}
+pollutionRose(df2, pollutant = "pm25", normalise = TRUE, seg = 1)
+```
+
+
+
+
+
+
+Concentrations are shown to vary by wind speed and wind direction. This helps in understanding the prevailing conditions (with respect to wind and direction). You can also change the pollutant and put in a meteorological parameter and see the relationship.
+```{r}
+polarPlot(df2,pollutant = "pm25",x = "ws",wd = "wd")
+```
+
+
+
+
+This is a custom-made plot to compactly show the distribution of wind speeds and directions from meteorological measurements. It is similar to the traditional wind rose, but includes a number of enhancements to also show how concentrations of pollutants and other variables vary. Each cell gives the total number of hours the wind was from that wind speed/direction in a particular year. The number of hours is coded as a color scale shown to the right.
+```{r}
+polarFreq(df2, type = "month")
+```
+
+
+
+For this plot, we are mostly interested in just the contribution by wind direction and not wind speed
+```{r}
+polarFreq(df2, pollutant = "pm25", type='month',ws.int = 30, statistic = "weighted.mean",
+          offset = 80, trans = FALSE, col = "heat")
+```
+
+This may be the end of the practical section and the codes for this session but not for your own free time and other data practices. use the links provided to access more information on the openair package and how it can help you.
